@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * @fileoverview KuGouMusic API 服务器核心模块
  *
@@ -222,18 +224,18 @@ async function consturctServer(moduleDefs) {
 
   /**
    * ============================================================
-   * 平台标识 Cookie 注入中间件
+   * 平台标识 Cookie 注入中间件（含自动登录信息注入）
    * ============================================================
    *
-   * 自动向请求的 Cookie 对象中注入以下平台标识信息（仅在客户端未提供时补充）：
+   * 自动向请求的 Cookie 对象中注入以下信息：
    * - KUGOU_API_PLATFORM: 平台类型（标准版/概念版 lite），来自环境变量 platform
    * - KUGOU_API_MID: 设备 MID，由 GUID 通过 calculateMid 算法生成
-   * - KUGOU_API_GUID: 设备全局唯一标识符，优先使用环境变量 KUGOU_API_GUID，否则使用启动时生成的默认值
-   * - KUGOU_API_DEV: 开发设备标识符，优先使用环境变量 KUGOU_API_DEV
-   * - KUGOU_API_MAC: 设备 MAC 地址，默认为 '02:00:00:00:00:00'
+   * - KUGOU_API_GUID: 设备全局唯一标识符
+   * - KUGOU_API_DEV: 开发设备标识符
+   * - KUGOU_API_MAC: 设备 MAC 地址
+   * - token / userid / dfid: 内置登录信息（从环境变量自动注入）
    *
-   * 同时通过 Set-Cookie 将这些值写回客户端，方便调试和后续请求自动携带。
-   * 根据请求协议（HTTP/HTTPS）决定 Cookie 的安全属性（SameSite=None; Secure）。
+   * 同时通过 Set-Cookie 将这些值写回客户端。
    */
   app.use((req, res, next) => {
     const cookies = req.cookies || {};
@@ -266,6 +268,16 @@ async function consturctServer(moduleDefs) {
     ensureCookie('KUGOU_API_DEV', (process.env.KUGOU_API_DEV ?? serverDev).toUpperCase());
     ensureCookie('KUGOU_API_MAC', (process.env.KUGOU_API_MAC ?? '02:00:00:00:00:00').toUpperCase());
     ensureCookie('KUGOU_API_WEBGL', process.env.KUGOU_API_WEBGL ?? generateWebGLHash());
+
+    // ========== 【新增】自动注入登录信息（从 .env 读取） ==========
+    const token = process.env.KUGOU_TOKEN;
+    const userid = process.env.KUGOU_USERID;
+    const dfid = process.env.KUGOU_DFID;
+
+    if (token) ensureCookie('token', token);
+    if (userid) ensureCookie('userid', userid);
+    if (dfid) ensureCookie('dfid', dfid);
+    // =============================================================
 
     // 将注入后的 cookies 回写到 req 对象上，供后续中间件和路由处理器使用
     req.cookies = cookies;
